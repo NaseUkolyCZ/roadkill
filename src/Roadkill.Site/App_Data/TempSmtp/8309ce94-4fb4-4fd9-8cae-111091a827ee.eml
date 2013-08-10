@@ -1,0 +1,35 @@
+X-Sender: signup@roadkillwiki.net
+X-Receiver: admin@localhost
+MIME-Version: 1.0
+From: signup@roadkillwiki.net
+To: admin@localhost
+Date: 10 Aug 2013 18:13:07 +0200
+Subject: Please confirm your email address
+Content-Type: multipart/alternative;
+ boundary=--boundary_0_402fca92-6ae2-475f-82b6-a7f1c3a52f37
+
+
+----boundary_0_402fca92-6ae2-475f-82b6-a7f1c3a52f37
+Content-Type: text/html
+Content-Transfer-Encoding: base64
+
+PGh0bWw+DQo8Ym9keSBzdHlsZT0iZm9udC1mYW1pbHk6QXJpYWw7Zm9udC1zaXplOjFl
+bSI+DQo8cD4NCkRlYXIgQ2hyaXMgQWRtaW4sDQo8L3A+DQoNCjxwPg0KWW91IHJlY2Vu
+dGx5IHJlcXVlc3RlZCBhIHBhc3N3b3JkIHJlc2V0IGZvciBBY2NlcHRhbmNlIFRlc3Rz
+LiBUbyByZXNldCB5b3VyIHBhc3N3b3JkIHBsZWFzZSBjbGljayB0aGUgbGluayBiZWxv
+dy4NCjwvcD4NCg0KPHA+DQo8YSBocmVmPSJodHRwOi8vbG9jYWxob3N0Ojk4NzYvdXNl
+ci9jb21wbGV0ZXJlc2V0cGFzc3dvcmQvOGUzYWUwZjMtN2RiOC00MGMyLThhZGItYmI1
+NTM2NmE0Yjg1Ij5SZXNldCB5b3VyIHBhc3N3b3JkPC9hPg0KPC9wPg0KDQo8cD5UaGUg
+SVAgb2YgdGhlIHJlcXVlc3Qgd2FzIDo6MTwvcD4NCjwvYm9keT4NCjwvaHRtbD4=
+----boundary_0_402fca92-6ae2-475f-82b6-a7f1c3a52f37
+Content-Type: text/plain
+Content-Transfer-Encoding: base64
+
+RGVhciBDaHJpcyBBZG1pbiwNCg0KWW91IHJlY2VudGx5IHJlcXVlc3RlZCBhIHBhc3N3
+b3JkIHJlc2V0IGZvciBBY2NlcHRhbmNlIFRlc3RzLiBUbyByZXNldCB5b3VyIHBhc3N3
+b3JkIHBsZWFzZSBlbnRlciB0aGUgbGluayBiZWxvdyBpbnRvIHlvdXIgYnJvd3Nlci4N
+Cg0KaHR0cDovL2xvY2FsaG9zdDo5ODc2L3VzZXIvY29tcGxldGVyZXNldHBhc3N3b3Jk
+LzhlM2FlMGYzLTdkYjgtNDBjMi04YWRiLWJiNTUzNjZhNGI4NQ0KDQpUaGUgSVAgb2Yg
+dGhlIHJlcXVlc3Qgd2FzIDo6MQ==
+----boundary_0_402fca92-6ae2-475f-82b6-a7f1c3a52f37--
+
