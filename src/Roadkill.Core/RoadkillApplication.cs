@@ -8,112 +8,68 @@ using Roadkill.Core.Configuration;
 using Roadkill.Core.Converters;
 using System.Web.Optimization;
 using Roadkill.Core.Logging;
-using Roadkill.Core.MVC;
+using Roadkill.Core.Mvc;
+using System.IO;
+using Roadkill.Core.DI;
+using Roadkill.Core.Mvc;
+using System.Web.Http;
 
 namespace Roadkill.Core
 {
 	/// <summary>
-	/// The entry point application (Global.asax) for Roadkill.
+	/// The entry point (Global.asax) for the Roadkill application.
 	/// </summary>
 	public class RoadkillApplication : HttpApplication
 	{
-		public static string BundleCssFilename { get; private set; }
-		public static string BundleJsFilename { get; private set; }
-
 		protected void Application_Start()
 		{
 			// Get the settings from the web.config
-			ConfigFileManager configManager = new ConfigFileManager();
-			ApplicationSettings applicationSettings = configManager.GetApplicationSettings();
+			ConfigReaderWriter configReader = new FullTrustConfigReaderWriter("");
+			ApplicationSettings applicationSettings = configReader.GetApplicationSettings();
 
 			// Configure StructureMap dependencies
-			DependencyContainer iocSetup = new DependencyContainer(applicationSettings);
-			iocSetup.RegisterTypes();
-			iocSetup.RegisterMvcFactoriesAndRouteHandlers();
+			DependencyManager iocSetup = new DependencyManager(applicationSettings);
+			iocSetup.Configure();
+			iocSetup.ConfigureMvc();
 
-			// All other routes
-			AreaRegistration.RegisterAllAreas();
-			RegisterRoutes(RouteTable.Routes);
+			// Logging
+			Log.ConfigureLogging(applicationSettings);
 
 			// Filters
 			GlobalFilters.Filters.Add(new HandleErrorAttribute());
 
-			// CSS/JS Bundles
-			RegisterBundles();
+			// Areas are used for:
+			// - Site settings (for a cleaner view structure)
+			// - Webapi help. 
+			// This should be called before the other routes, for some reason.
+			AreaRegistration.RegisterAllAreas();
+
+			// Register routes and JS/CSS bundles
+			Routing.RegisterApi(GlobalConfiguration.Configuration);
+			Routing.Register(RouteTable.Routes);
+			Bundles.Register();		
 
 			// Custom view engine registration (to add new search paths)
-			RegisterViewEngine();
+			ExtendedRazorViewEngine.Register();
+
+			Log.Information("Application started");
 		}
 
-		private void RegisterBundles()
+		protected void Application_Error()
 		{
-			BundleCssFilename = string.Format("roadkill{0}.css", ApplicationSettings.ProductVersion);
-			BundleJsFilename = string.Format("roadkill{0}.js", ApplicationSettings.ProductVersion);
-
-			// Bundle all CSS/JS files into a single file		
-			StyleBundle cssBundle = new StyleBundle("~/Assets/CSS/" + BundleCssFilename);
-			cssBundle.IncludeDirectory("~/Assets/CSS/", "*.css");
-
-			ScriptBundle defaultJsBundle = new ScriptBundle("~/Assets/Scripts/" + BundleJsFilename);
-			defaultJsBundle.Include("~/Assets/Scripts/*.js");
-			defaultJsBundle.Include("~/Assets/Scripts/jquery/*.js");
-			defaultJsBundle.Include("~/Assets/Scripts/roadkill/*.js");
-			defaultJsBundle.Include("~/Assets/Scripts/roadkill/filemanager/*.js");
-
-			BundleTable.Bundles.Add(cssBundle);
-			BundleTable.Bundles.Add(defaultJsBundle);
-		}
-
-		private void RegisterViewEngine()
-		{
-			// Add a search path for /Dialogs, via a custom view engine.
-			ViewEngines.Engines.Clear();
-
-			ExtendedRazorViewEngine engine = new ExtendedRazorViewEngine();
-			engine.AddPartialViewLocationFormat("~/Views/Shared/Dialogs/{0}.cshtml");
-
-			ViewEngines.Engines.Add(engine);
-		}
-
-		public static void RegisterRoutes(RouteCollection routes)
-		{
-			routes.IgnoreRoute("{resource}.axd/{*pathInfo}");
-			routes.IgnoreRoute("favicon.ico");
-
-			// For the jQuery ajax file manager
-			routes.MapLowercaseRoute(
-				"FileFolder",
-				"Files/Folder/{dir}",
-				new { controller = "Files", action = "Folder", dir = UrlParameter.Optional }
-			);
-
-			// The default way of getting to a page: "/wiki/123/page-title"
-			routes.MapLowercaseRoute(
-				"Wiki",
-				"Wiki/{id}/{title}",
-				new { controller = "Wiki", action = "Index", title = UrlParameter.Optional }
-			);
-
-			// Don't lowercase pages that use Base64
-			routes.MapRoute(
-				"Pages",
-				"pages/byuser/{id}/{encoded}",
-				new { controller = "Pages", action = "ByUser", title = UrlParameter.Optional }
-			);
-
-			// Default
-			routes.MapLowercaseRoute(
-				"Default", // Route name
-				"{controller}/{action}/{id}", // URL with parameters
-				new { controller = "Home", action = "Index", id = UrlParameter.Optional } // Parameter defaults
-			);
+			// Log ASP.NET errors (404, 500)
+			HttpException exception = new HttpException(null, HttpContext.Current.Server.GetLastError());
+			Log.Error("An ASP.NET based error occurred - ({0}) - {1}", 
+						exception.GetHttpCode(),
+						exception.ToString());
 		}
 
 		protected void Application_EndRequest(object sender, EventArgs e)
 		{
 			try
 			{
-				DependencyContainer.DisposeRepository();
+				// Finish the current Unit of Work
+				RepositoryManager.DisposeRepository();
 			}
 			catch (Exception ex)
 			{

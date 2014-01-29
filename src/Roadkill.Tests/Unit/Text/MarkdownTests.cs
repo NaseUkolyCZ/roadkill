@@ -10,6 +10,7 @@ using Roadkill.Core;
 using Roadkill.Core.Configuration;
 using Roadkill.Core.Converters;
 using Roadkill.Core.Database;
+using Roadkill.Tests.Unit.StubsAndMocks;
 
 namespace Roadkill.Tests.Unit
 {
@@ -17,6 +18,14 @@ namespace Roadkill.Tests.Unit
 	[Category("Unit")]
 	public class MarkdownParserTests
 	{
+		private PluginFactoryMock _pluginFactory;
+
+		[SetUp]
+		public void Setup()
+		{
+			_pluginFactory = new PluginFactoryMock();		
+		}
+
 		[Test]
 		public void Internal_Links_Should_Resolve_With_Id()
 		{
@@ -33,8 +42,10 @@ namespace Roadkill.Tests.Unit
 			settings.Installed = true;
 			settings.UpgradeRequired = false;
 
-			MarkupConverter converter = new MarkupConverter(settings, repositoryStub);
-			converter.InternalUrlForTitle = (id, title) => { return "blah"; };
+			UrlResolverMock resolver = new UrlResolverMock();
+			resolver.InternalUrl = "blah";
+			MarkupConverter converter = new MarkupConverter(settings, repositoryStub, _pluginFactory);
+			converter.UrlResolver = resolver;
 			
 			string markdownText = "[Link](My-first-page)";
 			string invalidMarkdownText = "[Link](My first page)";
@@ -66,7 +77,7 @@ namespace Roadkill.Tests.Unit
 			settings.Installed = true;
 			settings.UpgradeRequired = false;
 
-			MarkupConverter converter = new MarkupConverter(settings, repositoryStub);
+			MarkupConverter converter = new MarkupConverter(settings, repositoryStub, _pluginFactory);
 
 			string markdownText = "Here is some `// code with a 'quote' in it and another \"quote\"`\n\n" +
 				"    var x = \"some tabbed code\";\n\n"; // 2 line breaks followed by 4 spaces (tab stop) at the start indicates a code block

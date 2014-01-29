@@ -36,7 +36,7 @@ namespace Roadkill.Core.Attachments
 		/// <param name="context"></param>
 		public void ProcessRequest(HttpContext context)
 		{
-			ResponseWrapper wrapper = new ResponseWrapper(context.Response);
+			ResponseWrapper wrapper = new ResponseWrapper(new HttpResponseWrapper(context.Response));
 
 			WriteResponse(context.Request.Url.LocalPath, 
 							context.Request.ApplicationPath, 
@@ -83,18 +83,18 @@ namespace Roadkill.Core.Attachments
 				{
 					// 404
 					Log.Warn("The url {0} (translated to {1}) does not exist on the server.", localPath, fullPath);
-					responseWrapper.StatusCode = 404;
-					responseWrapper.End();
 
-					return;
+					// Throw so the web.config catches it
+					throw new HttpException(404, string.Format("{0} does not exist on the server.", localPath));
 				}
 			}
 			catch (IOException ex)
 			{
+				// 500
 				Log.Error(ex, "There was a problem opening the file {0}.", localPath);
-				responseWrapper.Write("There was a problem opening the file (see the error logs)");
-				responseWrapper.StatusCode = 500;
-				responseWrapper.End();
+
+				// Throw so the web.config catches it				
+				throw new HttpException(500, "There was a problem opening the file (see the error logs)");
 			}
 		}
 

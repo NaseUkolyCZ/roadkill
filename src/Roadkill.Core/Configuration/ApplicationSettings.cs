@@ -23,6 +23,7 @@ namespace Roadkill.Core.Configuration
 		private string _attachmentsDirectoryPath;
 		private string _attachmentsUrlPath;
 		private string _attachmentsRoutePath;
+		private HttpContextBase _httpContext;
 
 		/// <summary>
 		/// The name of the role or Active Directory security group that users should belong to in order to create,edit,delete pages,
@@ -78,9 +79,9 @@ namespace Roadkill.Core.Configuration
 			{
 				if (string.IsNullOrEmpty(_attachmentsDirectoryPath))
 				{
-					if (AttachmentsFolder.StartsWith("~") && HttpContext.Current != null)
+					if (AttachmentsFolder.StartsWith("~") && _httpContext != null)
 					{
-						_attachmentsDirectoryPath = HttpContext.Current.Server.MapPath(AttachmentsFolder);
+						_attachmentsDirectoryPath = _httpContext.Server.MapPath(AttachmentsFolder);
 					}
 					else
 					{
@@ -144,6 +145,19 @@ namespace Roadkill.Core.Configuration
 		public string CustomTokensPath { get; set; }
 
 		/// <summary>
+		/// The full path to the text plugins directory. This is where plugins are stored after 
+		/// download (including their nuget files), and are copied to the bin folder.
+		/// </summary>
+		public string PluginsPath { get; internal set; }
+
+		/// <summary>
+		/// The directory within the /bin folder that the plugins are stored. They are 
+		/// copied here on application start, so they can be loaded into the application domain with shadow 
+		/// copy support and also monitored by the ASP.NET file watcher.
+		/// </summary>
+		public string PluginsBinPath { get; internal set; }
+
+		/// <summary>
 		/// The database type used as the backing store.
 		/// </summary>
 		public DataStoreType DataStoreType { get; set; }
@@ -172,6 +186,17 @@ namespace Roadkill.Core.Configuration
 		/// Whether the site is public, i.e. all pages are visible by default. This is optional in the web.config and the default is true.
 		/// </summary>
 		public bool IsPublicSite { get; set; }
+
+		/// <summary>
+		/// If this instance is running on the demo site.
+		/// </summary>
+		internal bool IsDemoSite
+		{
+			get
+			{
+				return ConfigurationManager.AppSettings["DemoSite"] == "true";
+			}
+		}
 
 		/// <summary>
 		/// Indicates whether the installation has been completed previously.
@@ -215,11 +240,6 @@ namespace Roadkill.Core.Configuration
 		public string RepositoryType { get; set; }
 
 		/// <summary>
-		/// Whether to scale images dynamically on the page, using Javascript, so they fit inside the main page container (400x400px).
-		/// </summary>
-		public bool ResizeImages { get; set; }
-
-		/// <summary>
 		/// True if the version number in the web.config does not match the current assembly version.
 		/// </summary>
 		public bool UpgradeRequired { get; internal set; }
@@ -241,12 +261,12 @@ namespace Roadkill.Core.Configuration
 		public bool UseHtmlWhiteList { get; set; }
 
 		/// <summary>
-		/// The type for the <see cref="UserManager"/>. If the setting for this is blank
+		/// The type for the <see cref="UserServiceBase"/>. If the setting for this is blank
 		/// in the web.config, then the <see cref="UseWindowsAuthentication"/> is checked and if false
-		/// a <see cref="DefaultUserManager"/> is created. The format of this setting can be retrieved by
-		/// using <code>typeof(YourUserManager).AssemblyQualifiedName.</code>
+		/// a <see cref="FormsAuthUserService"/> is created. The format of this setting can be retrieved by
+		/// using <code>typeof(YourUserService).FullName.</code>
 		/// </summary>
-		public string UserManagerType { get; set; }
+		public string UserServiceType { get; set; }
 
 		/// <summary>
 		/// Gets a value indicating whether this windows authentication is being used.
@@ -254,7 +274,7 @@ namespace Roadkill.Core.Configuration
 		public bool UseWindowsAuthentication { get; set; }
 
 		/// <summary>
-		/// The current Roadkill product version, e.g. "1.7.0-Beta3".
+		/// The human-friendly current Roadkill product version, e.g. "1.7.0-Beta3".
 		/// </summary>
 		public static string ProductVersion
 		{
@@ -264,8 +284,25 @@ namespace Roadkill.Core.Configuration
 			}
 		}
 
+		/// <summary>
+		/// The file version of the Roadkill product version, e.g. "1.7.0.0"
+		/// </summary>
+		public static string FileVersion
+		{
+			get
+			{
+				return FileVersionInfo.GetVersionInfo(typeof(ApplicationSettings).Assembly.Location).FileVersion;
+			}
+		}
+
+		/// <summary>
+		/// Initializes a new instance of the <see cref="ApplicationSettings"/> class.
+		/// </summary>
 		public ApplicationSettings()
 		{
+			if (HttpContext.Current != null)
+				_httpContext = new HttpContextWrapper(HttpContext.Current);
+
 			AppDataPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "App_Data");
 			AppDataInternalPath = Path.Combine(AppDataPath, "Internal");
 			CustomTokensPath = Path.Combine(AppDataPath, "customvariables.xml");
@@ -277,14 +314,25 @@ namespace Roadkill.Core.Configuration
 			AttachmentsFolder = "~/App_Data/Attachments";
 			SearchIndexPath = Path.Combine(AppDataInternalPath, "Search");
 			SQLiteBinariesPath = Path.Combine(AppDataInternalPath, "SQLiteBinaries");
+			PluginsBinPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "bin", "Plugins");
+			PluginsPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Plugins");
+		}
+
+		/// <summary>
+		/// Initializes a new instance of the <see cref="ApplicationSettings"/> class.
+		/// </summary>
+		/// <param name="httpContext">The HTTP context.</param>
+		internal ApplicationSettings(HttpContextBase httpContext) : this()
+		{
+			_httpContext = httpContext;
 		}
 
 		private string ParseAttachmentsPath()
 		{
 			string attachmentsPath = "/" + AttachmentsRoutePath;
-			if (HttpContext.Current != null)
+			if (_httpContext != null)
 			{
-				string applicationPath = HttpContext.Current.Request.ApplicationPath;
+				string applicationPath = _httpContext.Request.ApplicationPath;
 				if (!applicationPath.EndsWith("/"))
 					applicationPath += "/";
 

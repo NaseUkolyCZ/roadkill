@@ -10,7 +10,9 @@ using MongoDB.Driver.Builders;
 using MongoDB.Driver.Linq;
 using Roadkill.Core.Configuration;
 using Roadkill.Core.Logging;
+using Roadkill.Core.Plugins;
 using StructureMap.Attributes;
+using PluginSettings = Roadkill.Core.Plugins.Settings;
 
 namespace Roadkill.Core.Database.MongoDB
 {
@@ -41,7 +43,6 @@ namespace Roadkill.Core.Database.MongoDB
 				return Queryable<User>();
 			}
 		}
-
 
 		public MongoDBRepository(ApplicationSettings settings)
 		{
@@ -109,31 +110,63 @@ namespace Roadkill.Core.Database.MongoDB
 
 		public SiteSettings GetSiteSettings()
 		{
-			SiteSettingsEntity entity = Queryable<SiteSettingsEntity>().FirstOrDefault();
-			SiteSettings preferences = new SiteSettings();
+			SiteConfigurationEntity entity = Queryable<SiteConfigurationEntity>()
+												.FirstOrDefault(x => x.Id == SiteSettings.SiteSettingsId);
+			SiteSettings siteSettings = new SiteSettings();
 
 			if (entity != null)
 			{
-				preferences = SiteSettings.LoadFromJson(entity.Content);
+				siteSettings = SiteSettings.LoadFromJson(entity.Content);
 			}
 			else
 			{
-				Log.Warn("MongoDB: No configuration settings could be found in the database, using a default SiteSettings");
+				Log.Warn("MongoDB: No site settings could be found in the database, using a default SiteSettings");
 			}
 
-			return preferences;
+			return siteSettings;
+		}
+
+		public PluginSettings GetTextPluginSettings(Guid databaseId)
+		{
+			SiteConfigurationEntity entity = Queryable<SiteConfigurationEntity>()
+												.FirstOrDefault(x => x.Id == databaseId);
+
+			PluginSettings pluginSettings = null;
+
+			if (entity != null)
+			{
+				pluginSettings = PluginSettings.LoadFromJson(entity.Content);
+			}
+
+			return pluginSettings;
+		}
+
+		public void SaveTextPluginSettings(TextPlugin plugin)
+		{
+			SiteConfigurationEntity entity = Queryable<SiteConfigurationEntity>()
+												.FirstOrDefault(x => x.Id == plugin.DatabaseId);
+
+			if (entity == null)
+				entity = new SiteConfigurationEntity();
+
+			entity.Id = plugin.DatabaseId;
+			entity.Version = plugin.Version;
+			entity.Content = plugin.Settings.GetJson();
+			SaveOrUpdate<SiteConfigurationEntity>(entity);
 		}
 
 		public void SaveSiteSettings(SiteSettings preferences)
 		{
 			// Get the fresh db entity first
-			SiteSettingsEntity entity = Queryable<SiteSettingsEntity>().FirstOrDefault();
+			SiteConfigurationEntity entity = Queryable<SiteConfigurationEntity>()
+												.FirstOrDefault(x => x.Id == SiteSettings.SiteSettingsId);
 			if (entity == null)
-				entity = new SiteSettingsEntity();
+				entity = new SiteConfigurationEntity();
 
+			entity.Id = SiteSettings.SiteSettingsId;
 			entity.Version = ApplicationSettings.ProductVersion.ToString();
 			entity.Content = preferences.GetJson();
-			SaveOrUpdate<SiteSettingsEntity>(entity);
+			SaveOrUpdate<SiteConfigurationEntity>(entity);
 		}
 
 		public void Startup(DataStoreType dataStoreType, string connectionString, bool enableCache)
@@ -150,7 +183,7 @@ namespace Roadkill.Core.Database.MongoDB
 			database.DropCollection("Page");
 			database.DropCollection("PageContent");
 			database.DropCollection("User");
-			database.DropCollection("SiteSettingsEntity");
+			database.DropCollection("SiteConfiguration");
 		}
 
 		/// <summary>
@@ -251,14 +284,20 @@ namespace Roadkill.Core.Database.MongoDB
 			return Users.FirstOrDefault(x => x.Id == id && x.IsEditor);
 		}
 
-		public User GetUserByEmail(string email, bool isActivated = true)
+		public User GetUserByEmail(string email, bool? isActivated = null)
 		{
-			return Users.FirstOrDefault(x => x.Email == email && x.IsActivated == isActivated);
+			if (isActivated.HasValue)
+				return Users.FirstOrDefault(x => x.Email == email && x.IsActivated == isActivated.HasValue);
+			else
+				return Users.FirstOrDefault(x => x.Email == email);
 		}
 
-		public User GetUserById(Guid id, bool isActivated = true)
+		public User GetUserById(Guid id, bool? isActivated = null)
 		{
-			return Users.FirstOrDefault(x => x.Id == id && x.IsActivated == isActivated);
+			if (isActivated.HasValue)
+				return Users.FirstOrDefault(x => x.Id == id && x.IsActivated == isActivated.Value);
+			else
+				return Users.FirstOrDefault(x => x.Id == id);
 		}
 
 		public User GetUserByPasswordResetKey(string key)
@@ -323,9 +362,10 @@ namespace Roadkill.Core.Database.MongoDB
 		}
 
 		#region IRepository Members
-		public void SaveOrUpdatePage(Page page)
+		public Page SaveOrUpdatePage(Page page)
 		{
 			SaveOrUpdate<Page>(page);
+			return page;
 		}
 
 		public PageContent AddNewPage(Page page, string text, string editedBy, DateTime editedOn)

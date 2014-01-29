@@ -10,15 +10,17 @@ using Roadkill.Core.Logging;
 namespace Roadkill.Core.Configuration
 {
 	/// <summary>
-	/// Contains all configuration data stored with NHibernate/the database, for settings that do not require an application restart when changed.
+	/// Contains all configuration data stored in the database, for settings that do not require an application restart when changed.
+	/// This class is stored in the database as JSON.
 	/// </summary>
 	[Serializable]
 	public class SiteSettings
 	{
 		internal static readonly Guid SiteSettingsId = new Guid("b960e8e5-529f-4f7c-aee4-28eb23e13dbd");
-
 		private string _allowedFileTypes;
+		private string _menuMarkup;
 
+		#region Version 1.7
 		/// <summary>
 		/// The files types allowed for uploading.
 		/// </summary>
@@ -106,9 +108,48 @@ namespace Roadkill.Core.Configuration
 				return new List<string>(AllowedFileTypes.Replace(" ", "").Split(','));
 			}
 		}
+		#endregion
+
+		#region Version 2.0
+		/// <summary>
+		/// Whether files with the same name overwrite the existing file, or throw an error.
+		/// </summary>
+		public bool OverwriteExistingFiles { get; set; }
+
+		/// <summary>
+		/// Extra HTML/Javascript that is added to the HTML head, for example Google analytics, web fonts.
+		/// </summary>
+		public string HeadContent { get; set; }
+
+		/// <summary>
+		/// The left menu markup which is parsed and rendered.
+		/// </summary>
+		public string MenuMarkup
+		{
+			get
+			{
+				// If there's no menu markup (from an upgrade) default it.
+				// Empty markup is valid, but null isn't.
+				if (_menuMarkup == null)
+					_menuMarkup = GetDefaultMenuMarkup();
+
+				return _menuMarkup;
+			}
+			set
+			{
+				_menuMarkup = value;
+			}
+		}
+
+		/// <summary>
+		/// The last time a plugin was saved - this is used for 304 modified checks when browser caching is enabled.
+		/// </summary>
+		public DateTime PluginLastSaveDate { get; set; }
+		#endregion
 
 		public SiteSettings()
 		{
+			// v1.7
 			AllowedFileTypes = "jpg, png, gif";
 			AllowUserSignup = false;
 			IsRecaptchaEnabled = false;
@@ -118,11 +159,27 @@ namespace Roadkill.Core.Configuration
 			SiteUrl = "";
 			RecaptchaPrivateKey = "";
 			RecaptchaPublicKey = "";
+
+			// v2.0
+			OverwriteExistingFiles = false;
+			HeadContent = "";
+			MenuMarkup = GetDefaultMenuMarkup();
+			PluginLastSaveDate = DateTime.UtcNow;
 		}
 
 		public string GetJson()
 		{
 			return JsonConvert.SerializeObject(this, Formatting.Indented);
+		}
+
+		internal string GetDefaultMenuMarkup()
+		{
+			return "* %mainpage%\r\n" +
+					"* %categories%\r\n" +
+					"* %allpages%\r\n" +
+					"* %newpage%\r\n" +
+					"* %managefiles%\r\n" +
+					"* %sitesettings%\r\n\r\n";
 		}
 
 		public static SiteSettings LoadFromJson(string json)
@@ -137,9 +194,9 @@ namespace Roadkill.Core.Configuration
 			{
 				return JsonConvert.DeserializeObject<SiteSettings>(json);
 			}
-			catch (JsonReaderException e)
+			catch (JsonReaderException ex)
 			{
-				Log.Error("SiteSettings.LoadFromJson - an exception occurred deserializing the JSON - {0}", e.ToString());
+				Log.Error(ex, "SiteSettings.LoadFromJson - an exception occurred deserializing the JSON");
 				return new SiteSettings();
 			}
 		}

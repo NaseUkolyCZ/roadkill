@@ -26,13 +26,22 @@ namespace Roadkill.Tests.Unit
 			try
 			{
 				// Delete any existing attachments folder
-				DirectoryInfo directoryInfo = new DirectoryInfo(_settings.AttachmentsFolder);
-				if (directoryInfo.Exists)
-				{
-					directoryInfo.Attributes = FileAttributes.Normal;
-					directoryInfo.Delete(true);
-				}
 
+				// Remove the files 1st
+				if (Directory.Exists(_settings.AttachmentsFolder))
+				{
+					DirectoryInfo directoryInfo = new DirectoryInfo(_settings.AttachmentsFolder);
+					foreach (FileInfo file in directoryInfo.GetFiles())
+					{
+						File.Delete(file.FullName);
+					}
+
+					if (directoryInfo.Exists)
+					{
+						directoryInfo.Attributes = FileAttributes.Normal;
+						directoryInfo.Delete(true);
+					}
+				}
 				Directory.CreateDirectory(_settings.AttachmentsFolder);
 			}
 			catch (IOException e)
@@ -175,6 +184,48 @@ namespace Roadkill.Tests.Unit
 
 			// Assert
 			Assert.That(actualResult, Is.EqualTo(expectedResult));
+		}
+
+		[Test]
+		public void AttachmentFolderExistsAndWriteable_Should_Return_Empty_String_For_Writeable_Folder()
+		{
+			// Arrange
+			string directory = AppDomain.CurrentDomain.BaseDirectory;
+			string expectedMessage = "";
+
+			// Act
+			string actualMessage = AttachmentPathUtil.AttachmentFolderExistsAndWriteable(directory, null);
+
+			// Assert
+			Assert.That(actualMessage, Is.EqualTo(expectedMessage));
+		}
+
+		[Test]
+		public void AttachmentFolderExistsAndWriteable_Should_Return_Error_For_Empty_Folder()
+		{
+			// Arrange
+			string directory = "";
+			string expectedMessage = "The folder name is empty";
+
+			// Act
+			string actualMessage = AttachmentPathUtil.AttachmentFolderExistsAndWriteable(directory, null);
+
+			// Assert
+			Assert.That(actualMessage, Is.EqualTo(expectedMessage));
+		}
+
+		[Test]
+		public void AttachmentFolderExistsAndWriteable_Should_Return_Error_For_Missing_Folder()
+		{
+			// Arrange
+			string directory = @"c:\87sd9f7dssdds3232";
+			string expectedMessage = "The directory does not exist, please create it first";
+
+			// Act
+			string actualMessage = AttachmentPathUtil.AttachmentFolderExistsAndWriteable(directory, null);
+
+			// Assert
+			Assert.That(actualMessage, Is.EqualTo(expectedMessage));
 		}
 	}
 }

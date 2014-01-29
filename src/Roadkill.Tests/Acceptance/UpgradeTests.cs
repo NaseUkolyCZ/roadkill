@@ -26,19 +26,17 @@ namespace Roadkill.Tests.Acceptance
 		[TestFixtureSetUp]
 		public void TestFixtureSetUp()
 		{
-			SitePath = AcceptanceTestsSetup.GetSitePath();
-
 			// SQL Server 1.5.2 script
 			CreateSqlServer152Database();
 			InstallSqlServer152Tables();
 
 			// SQL Server CE 1.5.2. database
-			string sqlServerCEDBPath = Path.Combine(Settings.LIB_FOLDER, "Test-databases", "roadkill152.sdf");
-			File.Copy(sqlServerCEDBPath, Path.Combine(SitePath, "App_Data", "roadkill152.sdf"), true);
+			string sqlServerCEDBPath = Path.Combine(Settings.LIB_FOLDER, "Test-databases", "Upgrade", "roadkill152.sdf");
+			File.Copy(sqlServerCEDBPath, Path.Combine(Settings.WEB_PATH, "App_Data", "roadkill152.sdf"), true);
 
 			// SQLite 1.5.2 database
-			string sqliteDBPath = Path.Combine(Settings.LIB_FOLDER, "Test-databases", "roadkill152.sqlite");
-			string destSqlitePath = Path.Combine(SitePath, "App_Data", "roadkill152.sqlite");
+			string sqliteDBPath = Path.Combine(Settings.LIB_FOLDER, "Test-databases", "Upgrade", "roadkill152.sqlite");
+			string destSqlitePath = Path.Combine(Settings.WEB_PATH, "App_Data", "roadkill152.sqlite");
 			File.Copy(sqliteDBPath, destSqlitePath, true);
 		}
 
@@ -46,7 +44,7 @@ namespace Roadkill.Tests.Acceptance
 		public void TearDown()
 		{
 			// Reset the web.config back for all other acceptance tests
-			AcceptanceTestsSetup.CopyWebConfig();
+			ConfigFileManager.CopyConnectionStringsConfig();
 		}
 
 		[Test]
@@ -114,7 +112,7 @@ namespace Roadkill.Tests.Acceptance
 
 		private void UpdateWebConfig(string connectionstring, DataStoreType databaseType)
 		{
-			string sitePath = AcceptanceTestsSetup.GetSitePath();
+			string sitePath = Settings.WEB_PATH;
 			string webConfigPath = Path.Combine(sitePath, "web.config");
 
 			// Remove the readonly flag 
@@ -164,7 +162,7 @@ namespace Roadkill.Tests.Acceptance
 		/// </summary>
 		private void InstallSqlServer152Tables()
 		{
-			string scriptPath = Path.Combine(Settings.LIB_FOLDER, "Test-databases", "roadkill152.sqlserver.sql");
+			string scriptPath = Path.Combine(Settings.LIB_FOLDER, "Test-databases", "Upgrade", "roadkill152.sqlserver.sql");
 			string sql = File.ReadAllText(scriptPath);
 
 			string[] sqlCommands = sql.Split(';');

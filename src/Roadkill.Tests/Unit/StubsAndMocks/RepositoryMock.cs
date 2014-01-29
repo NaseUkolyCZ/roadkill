@@ -5,6 +5,8 @@ using System.Text;
 using Roadkill.Core;
 using Roadkill.Core.Configuration;
 using Roadkill.Core.Database;
+using Roadkill.Core.Plugins;
+using PluginSettings = Roadkill.Core.Plugins.Settings;
 
 namespace Roadkill.Tests.Unit
 {
@@ -14,7 +16,12 @@ namespace Roadkill.Tests.Unit
 		public List<PageContent> PageContents { get; set; }
 		public List<User> Users { get; set; }
 		public SiteSettings SiteSettings { get; set; }
+		public List<TextPlugin> TextPlugins { get; set; }
 
+		// If this is set, GetTextPluginSettings returns it instead of a lookup
+		public PluginSettings PluginSettings { get; set; }
+
+		public bool Installed { get; set; }
 		public DataStoreType InstalledDataStoreType { get; private set; }
 		public string InstalledConnectionString { get; private set; }
 		public bool InstalledEnableCache { get; private set; }
@@ -25,6 +32,7 @@ namespace Roadkill.Tests.Unit
 			PageContents = new List<PageContent>();
 			Users = new List<User>();
 			SiteSettings = new SiteSettings();
+			TextPlugins = new List<TextPlugin>();
 		}
 
 		#region IRepository Members
@@ -55,7 +63,7 @@ namespace Roadkill.Tests.Unit
 			Users = new List<User>();
 		}
 
-		public void SaveOrUpdatePage(Page page)
+		public Page SaveOrUpdatePage(Page page)
 		{
 			Page existingPage = Pages.FirstOrDefault(x => x.Id == page.Id);
 
@@ -63,6 +71,7 @@ namespace Roadkill.Tests.Unit
 			{
 				page.Id = Pages.Count + 1;
 				Pages.Add(page);
+				existingPage = page;
 			}
 			else
 			{
@@ -74,6 +83,8 @@ namespace Roadkill.Tests.Unit
 				existingPage.Tags = page.Tags;
 				existingPage.Title = page.Title;
 			}
+
+			return existingPage;
 		}
 
 		public PageContent AddNewPage(Page page, string text, string editedBy, DateTime editedOn)
@@ -161,19 +172,43 @@ namespace Roadkill.Tests.Unit
 			return SiteSettings;
 		}
 
+		public void SaveTextPluginSettings(TextPlugin plugin)
+		{
+			int index = TextPlugins.IndexOf(plugin);
+
+			if (index == -1)
+				TextPlugins.Add(plugin);
+			else
+				TextPlugins[index] = plugin;
+		}
+
+		public PluginSettings GetTextPluginSettings(Guid databaseId)
+		{
+			if (PluginSettings != null)
+				return PluginSettings;
+
+			TextPlugin savedPlugin = TextPlugins.FirstOrDefault(x => x.DatabaseId == databaseId);
+
+			if (savedPlugin != null)
+				return savedPlugin._settings; // DON'T CALL Settings - you'll get a StackOverflowException
+			else
+				return null;
+		}
+
 		public void Startup(DataStoreType dataStoreType, string connectionString, bool enableCache)
 		{
 			
 		}
 
-		public void Install(DataStoreType dataStoreType, string connectionString, bool enableCache)
+		public virtual void Install(DataStoreType dataStoreType, string connectionString, bool enableCache)
 		{
+			Installed = true;
 			InstalledDataStoreType = dataStoreType;
 			InstalledConnectionString = connectionString;
 			InstalledEnableCache = enableCache;
 		}
 
-		public void TestConnection(DataStoreType dataStoreType, string connectionString)
+		public virtual void TestConnection(DataStoreType dataStoreType, string connectionString)
 		{
 			
 		}
@@ -281,14 +316,20 @@ namespace Roadkill.Tests.Unit
 			return Users.FirstOrDefault(x => x.Id == id && x.IsEditor);
 		}
 
-		public User GetUserByEmail(string email, bool isActivated = true)
+		public User GetUserByEmail(string email, bool? isActivated = null)
 		{
-			return Users.FirstOrDefault(x => x.Email == email && x.IsActivated == isActivated);
+			if (isActivated.HasValue)
+				return Users.FirstOrDefault(x => x.Email == email && x.IsActivated == isActivated);
+			else
+				return Users.FirstOrDefault(x => x.Email == email);
 		}
 
-		public User GetUserById(Guid id, bool isActivated = true)
+		public User GetUserById(Guid id, bool? isActivated = null)
 		{
-			return Users.FirstOrDefault(x => x.Id == id && x.IsActivated == isActivated);
+			if (isActivated.HasValue)
+				return Users.FirstOrDefault(x => x.Id == id && x.IsActivated == isActivated);
+			else
+				return Users.FirstOrDefault(x => x.Id == id);
 		}
 
 		public User GetUserByPasswordResetKey(string key)

@@ -23,7 +23,7 @@ namespace Roadkill.Tests.Unit
 		public void Setup()
 		{
 			_applicationSettings = new ApplicationSettings();
-			_applicationSettings.AttachmentsFolder = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Attachments");
+			_applicationSettings.AttachmentsFolder = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Unit", "Attachments");
 			_applicationSettings.AttachmentsRoutePath = "Attachments";
 		}
 
@@ -33,7 +33,7 @@ namespace Roadkill.Tests.Unit
 			// Arrange
 			AttachmentFileHandler handler = new AttachmentFileHandler(_applicationSettings);
 
-			string fullPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Attachments", "afile.jpg");
+			string fullPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Unit", "Attachments", "afile.jpg");
 			File.WriteAllText(fullPath, "fake content");
 			byte[] expectedBytes = File.ReadAllBytes(fullPath);
 			string expectedMimeType = "image/jpeg";
@@ -54,12 +54,37 @@ namespace Roadkill.Tests.Unit
 		}
 
 		[Test]
-		public void WriteResponse_Should_Set_404_Status_For_Bad_Application_Path()
+		public void WriteResponse_Should_Throw_404_Exception_For_Missing_File()
 		{
 			// Arrange
 			AttachmentFileHandler handler = new AttachmentFileHandler(_applicationSettings);
 
-			string fullPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Attachments", "afile.jpg");
+			string localPath = "/wiki/Attachments/doesntexist404.jpg";
+			string applicationPath = "/wiki";
+			string modifiedSince = "";
+
+			ResponseWrapperMock wrapper = new ResponseWrapperMock();
+
+			try
+			{
+				// Act + Assert
+				handler.WriteResponse(localPath, applicationPath, modifiedSince, wrapper);
+
+				Assert.Fail("No 404 HttpException thrown");
+			}
+			catch (HttpException e)
+			{
+				Assert.That(e.GetHttpCode(), Is.EqualTo(404));
+			}
+		}
+
+		[Test]
+		public void WriteResponse_Should_Throw_404_Exception_For_Bad_Application_Path()
+		{
+			// Arrange
+			AttachmentFileHandler handler = new AttachmentFileHandler(_applicationSettings);
+
+			string fullPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Unit", "Attachments", "afile.jpg");
 			File.WriteAllText(fullPath, "fake content");
 
 			string localPath = "/wiki/Attachments/afile.jpg";
@@ -68,11 +93,17 @@ namespace Roadkill.Tests.Unit
 
 			ResponseWrapperMock wrapper = new ResponseWrapperMock();
 
-			// Act
-			handler.WriteResponse(localPath, applicationPath, modifiedSince, wrapper);
+			try
+			{
+				// Act + Assert
+				handler.WriteResponse(localPath, applicationPath, modifiedSince, wrapper);
 
-			// Assert
-			Assert.That(wrapper.StatusCode, Is.EqualTo(404));
+				Assert.Fail("No 500 HttpException thrown");
+			}
+			catch (HttpException e)
+			{
+				Assert.That(e.GetHttpCode(), Is.EqualTo(404));
+			}
 		}
 
 		[Test]
@@ -108,34 +139,6 @@ namespace Roadkill.Tests.Unit
 
 			// Assert
 			Assert.That(actualPath, Is.EqualTo(expectedPath), "Failed with {0} {1} {2}", localPath, appPath, expectedPath);
-		}
-
-		[Test]
-		public void GetStatusCodeForCache_Should_Return_200_When_File_Was_Written_More_Recently()
-		{
-			// Arrange
-			DateTime fileLastWritten = DateTime.Today;
-			string ifModifiedSince = DateTime.Today.AddDays(-1).ToString("r"); // last time it was checked
-
-			// Act
-			int status = ResponseWrapper.GetStatusCodeForCache(fileLastWritten, ifModifiedSince); 
-
-			// Assert
-			Assert.That(status, Is.EqualTo(200));
-		}
-
-		[Test]
-		public void GetStatusCodeForCache_Should_Return_304_When_File_Was_Checked_More_Recently()
-		{
-			// Arrange
-			DateTime fileLastWritten = DateTime.Today.AddDays(-1);
-			string ifModifiedSince = fileLastWritten.ToString("r"); // last modified stores the modified/write time of the file, i.e. it's exact
-
-			// Act
-			int status = ResponseWrapper.GetStatusCodeForCache(fileLastWritten, ifModifiedSince);
-
-			// Assert
-			Assert.That(status, Is.EqualTo(304));
 		}
 	}
 }

@@ -3,11 +3,16 @@ using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.IO;
 using System.Linq;
+using System.Linq.Expressions;
+using System.Reflection;
 using System.Text;
 using System.Web;
 using System.Web.Mvc;
 using System.Web.Routing;
 using Moq;
+using NUnit.Framework;
+using Roadkill.Core.Mvc;
+using Roadkill.Tests.Unit.StubsAndMocks.Mvc;
 
 namespace Roadkill.Tests.Unit
 {
@@ -19,6 +24,7 @@ namespace Roadkill.Tests.Unit
 		public static HttpContextBase FakeHttpContext(MvcMockContainer container)
 		{
 			var context = new Mock<HttpContextBase>();
+			var cache = new Mock<HttpCachePolicyBase>();
 			var request = new Mock<HttpRequestBase>();
 			var response = new Mock<HttpResponseBase>();
 			var session = new Mock<HttpSessionStateBase>();
@@ -29,7 +35,12 @@ namespace Roadkill.Tests.Unit
 			request.Setup(r => r.Form).Returns(new NameValueCollection());
 			request.Setup(r => r.QueryString).Returns(new NameValueCollection());
 
+			response.Setup(r => r.Cache).Returns(new HttpCachePolicyMock());
+			response.SetupProperty(r => r.StatusCode);
+			response.Setup(x => x.ApplyAppPathModifier(It.IsAny<string>())).Returns<string>(x => { return x; }); // UrlHelper support
+
 			server.Setup(s => s.UrlDecode(It.IsAny<string>())).Returns<string>(s => s);
+			server.Setup(s => s.MapPath(It.IsAny<string>())).Returns<string>(s => { return s.Replace("~/bin", AppDomain.CurrentDomain.BaseDirectory +@"\").Replace("/",@"\"); });
 
 			context.Setup(ctx => ctx.Request).Returns(request.Object);
 			context.Setup(ctx => ctx.Response).Returns(response.Object);
@@ -53,12 +64,24 @@ namespace Roadkill.Tests.Unit
 			return context;
 		}
 
-		public static MvcMockContainer SetFakeControllerContext(this Controller controller)
+		public static MvcMockContainer SetFakeControllerContext(this Controller controller, string url = "")
 		{
 			MvcMockContainer container = new MvcMockContainer();
 			var httpContext = FakeHttpContext(container);
-			ControllerContext context = new ControllerContext(new RequestContext(httpContext, new RouteData()), controller);
+
+			if (!string.IsNullOrEmpty(url))
+				httpContext.Request.SetupRequestUrl(url);
+
+			// Routes		
+			RouteTable.Routes.Clear();
+			Routing.Register(RouteTable.Routes);
+			var routeData = new RouteData();
+			routeData.Values["controller"] = "wiki";
+			routeData.Values["action"] = "index";
+
+			ControllerContext context = new ControllerContext(new RequestContext(httpContext, routeData), controller);
 			controller.ControllerContext = context;
+			controller.Url = new UrlHelper(new RequestContext(httpContext, routeData), RouteTable.Routes);
 
 			return container;
 		}
@@ -110,36 +133,11 @@ namespace Roadkill.Tests.Unit
 				throw new ArgumentException("Sorry, we expect a virtual url starting with \"~/\".");
 
 			var mock = Mock.Get(request);
-
-			mock.Setup(req => req.QueryString)
-				.Returns(GetQueryStringParameters(url));
-			mock.Setup(req => req.AppRelativeCurrentExecutionFilePath)
-				.Returns(GetUrlFileName(url));
-			mock.Setup(req => req.PathInfo)
-				.Returns(string.Empty);
-		}
-
-		public static T ModelFromActionResult<T>(this ActionResult actionResult)
-		{
-			// Taken from Stackoverflow
-			object model;
-			if (actionResult.GetType() == typeof(ViewResult))
-			{
-				ViewResult viewResult = (ViewResult)actionResult;
-				model = viewResult.Model;
-			}
-			else if (actionResult.GetType() == typeof(PartialViewResult))
-			{
-				PartialViewResult partialViewResult = (PartialViewResult)actionResult;
-				model = partialViewResult.Model;
-			}
-			else
-			{
-				throw new InvalidOperationException(string.Format("Actionresult of type {0} is not supported by ModelFromResult extractor.", actionResult.GetType()));
-			}
-
-			T typedModel = (T)model;
-			return typedModel;
+			mock.Setup(req => req.QueryString).Returns(GetQueryStringParameters(url));
+			mock.Setup(req => req.AppRelativeCurrentExecutionFilePath).Returns(GetUrlFileName(url));
+			mock.Setup(req => req.PathInfo).Returns(string.Empty);
+			mock.Setup(req => req.Path).Returns(url);
+			mock.Setup(req => req.ApplicationPath).Returns("/"); // essential for UrlHelper
 		}
 	}
 }

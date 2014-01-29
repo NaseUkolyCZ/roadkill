@@ -239,6 +239,20 @@ namespace Roadkill.Core.Logging
 					_logger.Debug(message, args);
 					break;
 			}
+
+			try
+			{
+				if (IsLoggingEnabled())
+				{
+					Console.WriteLine("[" + errorType.ToString() + "] " + message, args);
+				}
+			}
+			catch (FormatException) { }
+		}
+
+		private static bool IsLoggingEnabled()
+		{
+			return _logger.Factory.IsLoggingEnabled();
 		}
 
 		/// <summary>

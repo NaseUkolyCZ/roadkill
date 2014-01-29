@@ -13,9 +13,10 @@ using Roadkill.Core.Attachments;
 using Roadkill.Core.Text.Sanitizer;
 using Roadkill.Core.Database;
 using Roadkill.Core.Text;
-using Roadkill.Core.Text.ToC;
+using Roadkill.Core.Plugins.Text.BuiltIn.ToC;
 using Roadkill.Core.Logging;
-using Roadkill.Core.Plugins.BuiltIn;
+using Roadkill.Core.Plugins.Text.BuiltIn;
+using Roadkill.Core.Plugins;
 
 namespace Roadkill.Core.Converters
 {
@@ -24,28 +25,14 @@ namespace Roadkill.Core.Converters
 	/// </summary>
 	public class MarkupConverter
 	{
+		private static Regex _imgFileRegex = new Regex("^File:", RegexOptions.IgnoreCase);
+		private static Regex _anchorRegex = new Regex("(?<hash>(#|%23).+)", RegexOptions.IgnoreCase);
+
 		private ApplicationSettings _applicationSettings;
 		private IRepository _repository;
 		private IMarkupParser _parser;
-		private UrlHelper _urlHelper;
-		private static Regex _imgFileRegex = new Regex("^File:", RegexOptions.IgnoreCase);
-		private static Regex _anchorRegex = new Regex("(?<hash>[#|%23].+)", RegexOptions.IgnoreCase);
-
-		/// <summary>
-		/// A method used by the converter to convert absolute paths to relative paths.
-		/// </summary>
-		public Func<string,string> AbsolutePathConverter { get; set; }
-
-		/// <summary>
-		/// A method used by the converter to get the internal url of a page based on the page title.
-		/// </summary>
-		public Func<int, string, string> InternalUrlForTitle { get; set; }
-
-		/// <summary>
-		/// A method used by the converter to get the url for adding a new page.
-		/// </summary>
-		public Func<string, string> NewPageUrlForTitle { get; set; }
 		private List<string> _externalLinkPrefixes;
+		private IPluginFactory _pluginFactory;
 		
 		/// <summary>
 		/// The current <see cref="IMarkupParser"/> being used by this instance, which is taken from 
@@ -56,18 +43,18 @@ namespace Roadkill.Core.Converters
 			get { return _parser; }
 		}
 
-		//[SetterProperty]
+		/// <summary>
+		/// Used to resolve the full path of urls for pages in the markup.
+		/// </summary>
+		public UrlResolver UrlResolver { get; set; }
+
 		/// <summary>
 		/// Creates a new markdown parser which handles the image and link parsing by the various different 
 		/// markdown format parsers.
 		/// </summary>
 		/// <returns>An <see cref="IMarkupParser"/> for Creole,Markdown or Media wiki formats.</returns>
-		public MarkupConverter(ApplicationSettings settings, IRepository repository)
+		public MarkupConverter(ApplicationSettings settings, IRepository repository, IPluginFactory pluginFactory)
 		{
-			AbsolutePathConverter = ConvertToAbsolutePath;
-			InternalUrlForTitle = GetUrlForTitle;
-			NewPageUrlForTitle = GetNewPageUrlForTitle;
-
 			_externalLinkPrefixes = new List<string>()
 			{
 				"http://",
@@ -78,24 +65,35 @@ namespace Roadkill.Core.Converters
 				"tag:"
 			};
 
+			_pluginFactory = pluginFactory;
 			_repository = repository;
 			_applicationSettings = settings;
 
-			string markupType = "";
+			// Create the UrlResolver for all wiki urls
+			HttpContextBase httpContext = null;
+			if (HttpContext.Current != null)
+				httpContext = new HttpContextWrapper(HttpContext.Current);
+
+			UrlResolver = new UrlResolver(httpContext);		
 	
 			if (!_applicationSettings.Installed || _applicationSettings.UpgradeRequired)
 			{
 				string warnMessage = "Roadkill is not installed, or an upgrade is pending (ApplicationSettings.UpgradeRequired = false)." +
 									"Skipping initialization of MarkupConverter (MarkupConverter.Parser will now be null)";
 
-				Console.WriteLine(warnMessage);
 				Log.Warn(warnMessage);
 
 				// Skip the chain of creation, as the markup converter isn't needed
 				return;
 			}
 
-			SiteSettings siteSettings = repository.GetSiteSettings();
+			CreateParserForMarkupType();
+		}
+
+		private void CreateParserForMarkupType()
+		{
+			string markupType = "";
+			SiteSettings siteSettings = _repository.GetSiteSettings();
 			if (siteSettings != null && !string.IsNullOrEmpty(siteSettings.MarkupType))
 			{
 				markupType = siteSettings.MarkupType.ToLower();
@@ -122,39 +120,48 @@ namespace Roadkill.Core.Converters
 		}
 
 		/// <summary>
+		/// Converts the menu markup to HTML.
+		/// </summary>
+		public string ParseMenuMarkup(string menuMarkup)
+		{
+			return _parser.Transform(menuMarkup);
+		}
+
+		/// <summary>
 		/// Turns the wiki markup provided into HTML.
 		/// </summary>
 		/// <param name="text">A wiki markup string, e.g. creole markup.</param>
 		/// <returns>The wiki markup converted to HTML.</returns>
-		public string ToHtml(string text)
+		public PageHtml ToHtml(string text)
 		{
 			CustomTokenParser tokenParser = new CustomTokenParser(_applicationSettings);
+			PageHtml pageHtml = new PageHtml();
+			TextPluginRunner runner = new TextPluginRunner(_pluginFactory);
 
-			// Custom variables before parse
-			SyntaxHighlighter highlighter = new SyntaxHighlighter();
-			MathJax mathJax = ObjectFactory.GetInstance<MathJax>();
-			text = highlighter.BeforeParse(text);
-			text = mathJax.BeforeParse(text);
+			// Text plugins before parse
+			text = runner.BeforeParse(text, pageHtml);			
 
-			// Markup parser
+			// Parse the markup into HTML
 			string html = _parser.Transform(text);
 			
-			// Remove bad tags
+			// Remove bad HTML tags
 			html = RemoveHarmfulTags(html);
 
 			// Customvariables.xml file
 			html = tokenParser.ReplaceTokensAfterParse(html);
 
-			// Custom variables after parse
-			html = highlighter.AfterParse(html);
-			html = mathJax.AfterParse(html);
+			// Text plugins after parse
+			html = runner.AfterParse(html);
 
-			// The TOC (should be a plugin now)
-			TocParser parser = new TocParser();
-			html = parser.InsertToc(html);
+			// Text plugins pre and post #container HTML
+			pageHtml.PreContainerHtml = runner.PreContainerHtml();
+			pageHtml.PostContainerHtml = runner.PostContainerHtml();
+			
+			pageHtml.IsCacheable = runner.IsCacheable;
+			pageHtml.Html = html;
 
-			return html;
-		}
+			return pageHtml;
+		}		
 
 		/// <summary>
 		/// Adds the attachments folder as a prefix to all image URLs before the HTML &lt;img&gt; tag is written.
@@ -168,7 +175,7 @@ namespace Roadkill.Core.Converters
 
 				string attachmentsPath = _applicationSettings.AttachmentsUrlPath;
 				string urlPath = attachmentsPath + (src.StartsWith("/") ? "" : "/") + src;
-				e.Src = AbsolutePathConverter(urlPath);
+				e.Src = UrlResolver.ConvertToAbsolutePath(urlPath);
 			}
 		}
 
@@ -181,71 +188,105 @@ namespace Roadkill.Core.Converters
 			{
 				string href = e.OriginalHref;
 				string lowerHref = href.ToLower();
-				string cssClass = "";
 
 				if (lowerHref.StartsWith("attachment:") || lowerHref.StartsWith("~/"))
 				{
-					// Parse "attachments:" to add the attachments path to the front of the href
-					if (lowerHref.StartsWith("attachment:"))
-					{
-						href = href.Remove(0, 11);
-						if (!href.StartsWith("/"))
-							href = "/" + href;
-					}
-					else if (lowerHref.StartsWith("~/"))
-					{
-						href = href.Remove(0, 1);
-					}
-
-					string attachmentsPath = _applicationSettings.AttachmentsUrlPath;
-					href = AbsolutePathConverter(attachmentsPath) + href;
+					ConvertAttachmentHrefToFullPath(e);
+				}
+				else if (lowerHref.StartsWith("special:"))
+				{
+					ConvertSpecialPageHrefToFullPath(e);
 				}
 				else
 				{
-					// Parse internal links
-					string title = href;
-					string anchorHash = "";
-
-					// Parse anchors for other pages
-					if (_anchorRegex.IsMatch(href))
-					{
-						// Grab the hash contents
-						Match match = _anchorRegex.Match(href);
-						anchorHash = match.Groups["hash"].Value;
-
-						// Grab the url
-						title = href.Replace(anchorHash, "");
-					}
-
-					if (Parser is MarkdownParser)
-					{
-						// For markdown, only urls with "-" in them are valid, spaces are ignored.
-						// So remove these, so a match is made. No url has a "-" in, so replacing them is ok.
-						title = title.Replace("-", " ");
-					}
-					
-
-					Page page = _repository.GetPageByTitle(title);
-					if (page != null)
-					{
-						href = InternalUrlForTitle(page.Id, page.Title);
-						href += anchorHash;
-					}
-					else
-					{
-						href = NewPageUrlForTitle(href);
-						cssClass = "missing-page-link";
-					}
+					ConvertInternalLinkHrefToFullPath(e);
 				}
-
-				e.Href = href;
-				e.Target = "";
-				e.CssClass = cssClass;
 			}
 			else
 			{
 				e.CssClass = "external-link";
 			}
+		}
+
+		/// <summary>
+		/// Updates the LinkEventArgs.Href to be a full path to the attachment
+		/// </summary>
+		private void ConvertAttachmentHrefToFullPath(LinkEventArgs e)
+		{
+			string href = e.OriginalHref;
+			string lowerHref = href.ToLower();
+
+			if (lowerHref.StartsWith("attachment:"))
+			{
+				// Remove the attachment: part
+				href = href.Remove(0, 11);
+				if (!href.StartsWith("/"))
+					href = "/" + href;
+			}
+			else if (lowerHref.StartsWith("~/"))
+			{
+				// Remove the ~ 
+				href = href.Remove(0, 1);
+			}
+
+			// Get the full path to the attachment
+			string attachmentsPath = _applicationSettings.AttachmentsUrlPath;
+			e.Href = UrlResolver.ConvertToAbsolutePath(attachmentsPath) + href;
+		}
+
+		/// <summary>
+		/// Updates the LinkEventArgs.Href to be a full path to the Special: page
+		/// </summary>
+		private void ConvertSpecialPageHrefToFullPath(LinkEventArgs e)
+		{
+			string href = e.OriginalHref;
+			e.Href = UrlResolver.ConvertToAbsolutePath("~/wiki/"+href);
+		}
+
+		/// <summary>
+		/// Updates the LinkEventArgs.Href to be a full path to the page, and the CssClass
+		/// </summary>
+		private void ConvertInternalLinkHrefToFullPath(LinkEventArgs e)
+		{
+			string href = e.OriginalHref;
+
+			// Parse internal links
+			string title = href;
+			string anchorHash = "";
+
+			// Parse anchors for other pages
+			if (_anchorRegex.IsMatch(href))
+			{
+				// Grab the hash contents
+				Match match = _anchorRegex.Match(href);
+				anchorHash = match.Groups["hash"].Value;
+
+				// Grab the url
+				title = href.Replace(anchorHash, "");
+			}
+
+			if (Parser is MarkdownParser)
+			{
+				// For markdown, only urls with "-" in them are valid, spaces are ignored.
+				// Remove these, so a match is made. No url has a "-" in, so replacing them is ok.
+				title = title.Replace("-", " ");
+			}
+
+			// Find the page, or if it doesn't exist point to the new page url
+			Page page = _repository.GetPageByTitle(title);
+			if (page != null)
+			{
+				href = UrlResolver.GetInternalUrlForTitle(page.Id, page.Title);
+				href += anchorHash;
+			}
+			else
+			{
+				href = UrlResolver.GetNewPageUrlForTitle(href);
+				e.CssClass = "missing-page-link";
+			}
+
+			e.Href = href;
+			e.Target = "";
 		}
 
 		/// <summary>
@@ -261,93 +302,6 @@ namespace Roadkill.Core.Converters
 			else
 			{
 				return html;
-			}
-		}
-
-		/// <summary>
-		/// Whether the text provided contains any links to the page title.
-		/// </summary>
-		/// <param name="text">The page's text contents.</param>
-		/// <param name="pageName">The name (title) of the page.</param>
-		/// <returns>True if the text contains links; false otherwise.</returns>
-		public bool ContainsPageLink(string text, string pageName)
-		{
-			Regex regex = new Regex(GetLinkUpdateRegex(pageName), RegexOptions.IgnoreCase);
-			return regex.IsMatch(text);
-		}
-
-		/// <summary>
-		/// Replaces all links with an old page title in the provided page text, with links with a new page name.
-		/// </summary>
-		/// <param name="text">The page's text contents.</param>
-		/// <param name="pageName">The previous name (title) of the page.</param>
-		/// <param name="newPageName">The new name (title) of the page.</param>
-		/// <returns>The text with link title names replaced.</returns>
-		public string ReplacePageLinks(string text, string oldPageName, string newPageName)
-		{
-			Regex regex = new Regex(GetLinkUpdateRegex(oldPageName), RegexOptions.IgnoreCase);
-			return regex.Replace(text, delegate(Match match)
-			{
-				if (match.Success && match.Groups.Count == 2)
-				{
-					return match.Value.Replace(match.Groups[1].Value, newPageName);
-				}
-				else
-				{
-					return match.Value;
-				}
-			});
-		}
-
-		/// <summary>
-		/// Gets a regex to update all links in a page.
-		/// </summary>
-		private string GetLinkUpdateRegex(string pageName)
-		{
-			string regex = string.Format("{0}{1}", _parser.LinkStartToken, _parser.LinkEndToken);
-			regex = regex.Replace("%LINKTEXT%", "(?:.*?)");
-			regex = regex.Replace("(", @"\(").Replace(")", @"\)").Replace("[", @"\[").Replace("]", @"\]");
-			regex = regex.Replace("%URL%", "(?<url>" + pageName + ")"); // brackets or square brackets will break the URL, so ignore these.
-
-			return regex;
-		}
-
-		private string ConvertToAbsolutePath(string relativeUrl)
-		{
-			if (HttpContext.Current != null)
-			{
-				UrlHelper helper = new UrlHelper(HttpContext.Current.Request.RequestContext);
-				return helper.Content(relativeUrl);
-			}
-			else
-			{
-				return relativeUrl;
-			}
-		}
-
-		private string GetUrlForTitle(int id, string title)
-		{
-			if (HttpContext.Current != null)
-			{
-				UrlHelper helper = new UrlHelper(HttpContext.Current.Request.RequestContext);
-				return helper.Action("Index", "Wiki", new { id = id, title = title.EncodeTitle() });
-			}
-			else
-			{
-				return string.Format("/index/wiki/{0}/{1}", id, title);
-			}
-		}
-
-		private string GetNewPageUrlForTitle(string title)
-		{
-			if (HttpContext.Current != null)
-			{
-				UrlHelper helper = new UrlHelper(HttpContext.Current.Request.RequestContext);
-				return helper.Action("New", "Pages", new { title = title });
-			}
-			else
-			{
-				return string.Format("/pages/new/?title={0}", title);
 			}
 		}
 	}

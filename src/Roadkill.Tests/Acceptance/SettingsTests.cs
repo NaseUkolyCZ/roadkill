@@ -26,7 +26,7 @@ namespace Roadkill.Tests.Acceptance
 			// Assert
 			Assert.That(Driver.ElementValue("#SiteName"), Is.EqualTo("Acceptance Tests"));
 			Assert.That(Driver.ElementValue("#SiteUrl"), Is.EqualTo("http://localhost:9876"));
-			Assert.That(Driver.ElementValue("#ConnectionString"), Is.StringStarting(@"Data Source=|DataDirectory|\roadkill-acceptancetests.sdf"));
+			Assert.That(Driver.ElementValue("#ConnectionString"), Is.StringStarting(SqlExpressSetup.ConnectionString));
 			Assert.That(Driver.ElementValue("#RecaptchaPrivateKey"), Is.EqualTo("recaptcha-private-key"));
 			Assert.That(Driver.ElementValue("#RecaptchaPublicKey"), Is.EqualTo("recaptcha-public-key"));
 			Assert.That(Driver.ElementValue("#EditorRoleName"), Is.EqualTo("Editor"));
@@ -42,9 +42,12 @@ namespace Roadkill.Tests.Acceptance
 
 			Assert.That(Driver.FindElements(By.CssSelector("#DataStoreTypeName option")).Count, Is.EqualTo(DataStoreType.AllTypes.Count()));
 			SelectElement element = new SelectElement(Driver.FindElement(By.CssSelector("#DataStoreTypeName")));
-			Assert.That(element.SelectedOption.GetAttribute("value"), Is.EqualTo(DataStoreType.ByName("SqlServerCe").Name));
+			Assert.That(element.SelectedOption.GetAttribute("value"), Is.EqualTo(DataStoreType.ByName("SqlServer2012").Name));
 			Assert.That(Driver.SelectedIndex("#MarkupType"), Is.EqualTo(0));
-			Assert.That(Driver.SelectedIndex("#Theme"), Is.EqualTo(1));
+			Assert.That(Driver.SelectedIndex("#Theme"), Is.EqualTo(3));
+			Assert.False(Driver.IsCheckboxChecked("OverwriteExistingFiles"));
+			Assert.That(Driver.ElementValue("#HeadContent"), Is.EqualTo(""));
+			Assert.That(Driver.ElementValue("#MenuMarkup"), Is.EqualTo("* %mainpage%\r\n* %categories%\r\n* %allpages%\r\n* %newpage%\r\n* %managefiles%\r\n* %sitesettings%\r\n\r\n"));
 		}
 
 		[Test]
@@ -55,7 +58,7 @@ namespace Roadkill.Tests.Acceptance
 
 			// Act
 			Driver.FindElement(By.CssSelector("a[href='/settings']")).Click();
-			Driver.FindElement(By.CssSelector("a[href='/settings/users']")).Click();
+			Driver.FindElement(By.CssSelector("a[href='/SiteSettings/UserManagement']")).Click();
 
 			// Assert
 			Assert.That(Driver.FindElements(By.CssSelector("#admins-table tbody tr")).Count, Is.EqualTo(1));
@@ -74,7 +77,7 @@ namespace Roadkill.Tests.Acceptance
 
 			// Act
 			Driver.FindElement(By.CssSelector("a[href='/settings']")).Click();
-			Driver.FindElement(By.CssSelector("a[href='/settings/users']")).Click();
+			Driver.FindElement(By.CssSelector("a[href='/SiteSettings/UserManagement']")).Click();
 
 			// Assert
 			Assert.That(Driver.FindElements(By.CssSelector("#editors-table tbody tr")).Count, Is.EqualTo(1));
@@ -94,11 +97,10 @@ namespace Roadkill.Tests.Acceptance
 
 			// Act
 			Driver.FindElement(By.CssSelector("a[href='/settings']")).Click();
-			Driver.FindElement(By.CssSelector("a[href='/settings/users']")).Click();
+			Driver.FindElement(By.CssSelector("a[href='/SiteSettings/UserManagement']")).Click();
 			Driver.FindElement(By.CssSelector("#admins-table tbody tr>td+td+td a")).Click();
 
 			// Assert
-			Assert.True(Driver.FindElement(By.CssSelector("#userdialog")).Displayed);
 			Assert.That(Driver.ElementValue("#NewUsername"), Is.EqualTo("admin"));
 			Assert.That(Driver.ElementValue("#NewEmail"), Is.EqualTo("admin@localhost"));
 			Assert.That(Driver.ElementValue("#Password"), Is.EqualTo(""));
@@ -113,13 +115,13 @@ namespace Roadkill.Tests.Acceptance
 
 			// Act
 			Driver.FindElement(By.CssSelector("a[href='/settings']")).Click();
-			Driver.FindElement(By.CssSelector("a[href='/settings/users']")).Click();
+			Driver.FindElement(By.CssSelector("a[href='/SiteSettings/UserManagement']")).Click();
 			Driver.FindElement(By.CssSelector("#admins-table tbody tr>td+td+td a")).Click();
 			Driver.FindElement(By.CssSelector("#NewUsername")).Clear();
 			Driver.FindElement(By.CssSelector("#NewUsername")).SendKeys("admin2");
 			Driver.FindElement(By.CssSelector("#NewEmail")).Clear();
 			Driver.FindElement(By.CssSelector("#NewEmail")).SendKeys("admin2@localhost");
-			Driver.FindElement(By.CssSelector("#userdialog input[value='Save']")).Click();
+			Driver.FindElement(By.CssSelector("input[value='Save']")).Click();
 
 			// Assert
 			Assert.That(Driver.FindElements(By.CssSelector("#admins-table tbody tr")).Count, Is.EqualTo(1));
@@ -136,13 +138,13 @@ namespace Roadkill.Tests.Acceptance
 
 			// Act
 			Driver.FindElement(By.CssSelector("a[href='/settings']")).Click();
-			Driver.FindElement(By.CssSelector("a[href='/settings/users']")).Click();
+			Driver.FindElement(By.CssSelector("a[href='/SiteSettings/UserManagement']")).Click();
 			Driver.FindElement(By.CssSelector("#editors-table tbody tr>td+td+td a")).Click();
 			Driver.FindElement(By.CssSelector("#Password")).Clear();
 			Driver.FindElement(By.CssSelector("#Password")).SendKeys("newpassword");
 			Driver.FindElement(By.CssSelector("#PasswordConfirmation")).Clear();
 			Driver.FindElement(By.CssSelector("#PasswordConfirmation")).SendKeys("newpassword");
-			Driver.FindElement(By.CssSelector("#userdialog input[value='Save']")).Click();
+			Driver.FindElement(By.CssSelector("input[value='Save']")).Click();
 
 			Logout();
 
@@ -163,8 +165,8 @@ namespace Roadkill.Tests.Acceptance
 
 			// Act
 			Driver.FindElement(By.CssSelector("a[href='/settings']")).Click();
-			Driver.FindElement(By.CssSelector("a[href='/settings/users']")).Click();
-			Driver.FindElement(By.CssSelector("#addadmin")).Click();
+			Driver.FindElement(By.CssSelector("a[href='/SiteSettings/UserManagement']")).Click();
+			Driver.FindElement(By.CssSelector("a[href='/SiteSettings/UserManagement/AddAdmin']")).Click();
 			Driver.FindElement(By.CssSelector("#NewUsername")).Clear();
 			Driver.FindElement(By.CssSelector("#NewUsername")).SendKeys("anotheradmin");
 			Driver.FindElement(By.CssSelector("#NewEmail")).Clear();
@@ -173,7 +175,7 @@ namespace Roadkill.Tests.Acceptance
 			Driver.FindElement(By.CssSelector("#Password")).SendKeys("password");
 			Driver.FindElement(By.CssSelector("#PasswordConfirmation")).Clear();
 			Driver.FindElement(By.CssSelector("#PasswordConfirmation")).SendKeys("password");
-			Driver.FindElement(By.CssSelector("#userdialog input[value='Save']")).Click();
+			Driver.FindElement(By.CssSelector("input[value='Save']")).Click();
 
 			// Assert
 			Assert.That(Driver.FindElements(By.CssSelector("#admins-table tbody tr")).Count, Is.EqualTo(2));
@@ -191,8 +193,8 @@ namespace Roadkill.Tests.Acceptance
 
 			// Act
 			Driver.FindElement(By.CssSelector("a[href='/settings']")).Click();
-			Driver.FindElement(By.CssSelector("a[href='/settings/users']")).Click();
-			Driver.FindElement(By.CssSelector("#addeditor")).Click();
+			Driver.FindElement(By.CssSelector("a[href='/SiteSettings/UserManagement']")).Click();
+			Driver.FindElement(By.CssSelector("a[href='/SiteSettings/UserManagement/AddEditor']")).Click();
 			Driver.FindElement(By.CssSelector("#NewUsername")).Clear();
 			Driver.FindElement(By.CssSelector("#NewUsername")).SendKeys("anothereditor");
 			Driver.FindElement(By.CssSelector("#NewEmail")).Clear();
@@ -201,14 +203,14 @@ namespace Roadkill.Tests.Acceptance
 			Driver.FindElement(By.CssSelector("#Password")).SendKeys("password");
 			Driver.FindElement(By.CssSelector("#PasswordConfirmation")).Clear();
 			Driver.FindElement(By.CssSelector("#PasswordConfirmation")).SendKeys("password");
-			Driver.FindElement(By.CssSelector("#userdialog input[value='Save']")).Click();
+			Driver.FindElement(By.CssSelector("input[value='Save']")).Click();
 
 			// Assert
 			Assert.That(Driver.FindElements(By.CssSelector("#editors-table tbody tr")).Count, Is.EqualTo(2));
-			Assert.That(Driver.FindElement(By.CssSelector("#editors-table tbody tr+tr>td")).Text, Is.EqualTo("anothereditor"));
-			Assert.That(Driver.FindElement(By.CssSelector("#editors-table tbody tr+tr>td+td")).Text, Is.EqualTo("anothereditor@localhost"));
-			Assert.That(Driver.FindElement(By.CssSelector("#editors-table tbody tr+tr>td+td+td a")).Text, Is.EqualTo("Edit"));
-			Assert.That(Driver.FindElement(By.CssSelector("#editors-table tbody tr+tr>td+td+td+td a")).Text, Is.EqualTo("Delete"));
+			Assert.That(Driver.FindElement(By.CssSelector("#editors-table tbody tr>td")).Text, Is.EqualTo("anothereditor"));
+			Assert.That(Driver.FindElement(By.CssSelector("#editors-table tbody tr>td+td")).Text, Is.EqualTo("anothereditor@localhost"));
+			Assert.That(Driver.FindElement(By.CssSelector("#editors-table tbody tr>td+td+td a")).Text, Is.EqualTo("Edit"));
+			Assert.That(Driver.FindElement(By.CssSelector("#editors-table tbody tr>td+td+td+td a")).Text, Is.EqualTo("Delete"));
 		}
 
 		[Test]
@@ -219,7 +221,7 @@ namespace Roadkill.Tests.Acceptance
 
 			// Act
 			Driver.FindElement(By.CssSelector("a[href='/settings']")).Click();
-			Driver.FindElement(By.CssSelector("a[href='/settings/users']")).Click();
+			Driver.FindElement(By.CssSelector("a[href='/SiteSettings/UserManagement']")).Click();
 			Driver.FindElement(By.CssSelector("#editors-table tbody tr>td+td+td+td a")).Click();
 			Driver.FindElement(By.CssSelector("#editors-table tbody tr>td+td+td+td a")).Click(); // confirm
 
@@ -235,7 +237,7 @@ namespace Roadkill.Tests.Acceptance
 
 			// Act
 			Driver.FindElement(By.CssSelector("a[href='/settings']")).Click();
-			Driver.FindElement(By.CssSelector("a[href='/settings/users']")).Click();
+			Driver.FindElement(By.CssSelector("a[href='/SiteSettings/UserManagement']")).Click();
 			Driver.FindElement(By.CssSelector("#editors-table tbody tr>td+td+td+td a")).Click();
 
 			// Assert

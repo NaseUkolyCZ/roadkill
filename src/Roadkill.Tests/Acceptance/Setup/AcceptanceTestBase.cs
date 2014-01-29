@@ -1,4 +1,6 @@
-﻿using System.Configuration;
+﻿using System;
+using System.Configuration;
+using System.Data.SqlClient;
 using System.IO;
 using System.Net.Mail;
 using System.Reflection;
@@ -7,14 +9,17 @@ using OpenQA.Selenium;
 
 namespace Roadkill.Tests.Acceptance
 {
+	/// <summary>
+	/// The base class for all Acceptance tests
+	/// </summary>
+	[Category("Acceptance")]
 	public abstract class AcceptanceTestBase
 	{
-		protected static readonly string ADMIN_EMAIL = "admin@localhost";
-		protected static readonly string ADMIN_PASSWORD = "password";
+		public static readonly string ADMIN_EMAIL = Settings.ADMIN_EMAIL;
+		public static readonly string ADMIN_PASSWORD = Settings.ADMIN_PASSWORD;
 
-		protected static readonly string EDITOR_EMAIL = "editor@localhost";
-		protected static readonly string EDITOR_PASSWORD = "password";
-		protected string SitePath;
+		protected static readonly string EDITOR_EMAIL = Settings.EDITOR_EMAIL;
+		protected static readonly string EDITOR_PASSWORD = Settings.EDITOR_PASSWORD;
 
 		protected IWebDriver Driver;
 		protected string LoginUrl;
@@ -29,22 +34,18 @@ namespace Roadkill.Tests.Acceptance
 			if (string.IsNullOrEmpty(url))
 				url = "http://localhost:9876";
 
-			CopyDb();
-			AcceptanceTestsSetup.CopyRoadkillConfig();
+			Console.WriteLine("============ Acceptance tests setup ============");
+
+			SqlExpressSetup.RecreateLocalDbData();
+			ConfigFileManager.CopyRoadkillConfig();
+
 			BaseUrl = url;
 			LoginUrl = BaseUrl + "/user/login";
 			LogoutUrl = BaseUrl + "/user/logout";
 			Driver = AcceptanceTestsSetup.Driver;
-
 			IsWindowsAuthTests = (ConfigurationManager.AppSettings["useWindowsAuth"] == "true");
-		}
 
-		protected void CopyDb()
-		{
-			SitePath = AcceptanceTestsSetup.GetSitePath();
-
-			string testsDBPath = Path.Combine(Settings.LIB_FOLDER, "Test-databases", "roadkill-acceptancetests.sdf");
-			File.Copy(testsDBPath, Path.Combine(SitePath, "App_Data", "roadkill-acceptancetests.sdf"), true);
+			Console.WriteLine("=================================================");
 		}
 
 		protected void CreatePageWithTags(params string[] tags)
@@ -64,7 +65,7 @@ namespace Roadkill.Tests.Acceptance
 			}
 
 			Driver.FindElement(By.Name("Content")).SendKeys("Some content goes here");
-			Driver.FindElement(By.CssSelector("input[value=Save]")).Click();
+			Driver.FindElement(By.CssSelector("input[type=submit]")).Click();
 		}
 
 		protected void LoginAsAdmin()
@@ -78,7 +79,7 @@ namespace Roadkill.Tests.Acceptance
 			Driver.Navigate().GoToUrl(LoginUrl);
 			Driver.FindElement(By.Name("email")).SendKeys(ADMIN_EMAIL);
 			Driver.FindElement(By.Name("password")).SendKeys(ADMIN_PASSWORD);
-			Driver.FindElement(By.CssSelector("input[value=Login]")).Click();
+			Driver.FindElement(By.CssSelector("input[type=submit]")).Click();
 		}
 
 		protected void LoginAsEditor()
@@ -92,7 +93,7 @@ namespace Roadkill.Tests.Acceptance
 			Driver.Navigate().GoToUrl(LoginUrl);
 			Driver.FindElement(By.Name("email")).SendKeys(EDITOR_EMAIL);
 			Driver.FindElement(By.Name("password")).SendKeys(EDITOR_PASSWORD);
-			Driver.FindElement(By.CssSelector("input[value=Login]")).Click();
+			Driver.FindElement(By.CssSelector("input[type=submit]")).Click();
 		}
 
 		protected void Logout()

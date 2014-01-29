@@ -11,10 +11,13 @@ using Roadkill.Core.Configuration;
 using Roadkill.Core.Mvc.Controllers;
 using Roadkill.Core.Converters;
 using Roadkill.Core.Database;
-using Roadkill.Core.Localization.Resx;
-using Roadkill.Core.Managers;
+using Roadkill.Core.Localization;
+using Roadkill.Core.Services;
 using Roadkill.Core.Security;
 using Roadkill.Core.Mvc.ViewModels;
+using System.Runtime.Caching;
+using Roadkill.Tests.Unit.StubsAndMocks;
+using MvcContrib.TestHelper;
 
 namespace Roadkill.Tests.Unit
 {
@@ -22,66 +25,71 @@ namespace Roadkill.Tests.Unit
 	[Category("Unit")]
 	public class HomeControllerTests
 	{
-		private ApplicationSettings _settings;
+		private MocksAndStubsContainer _container;
+
+		private ApplicationSettings _applicationSettings;
 		private IUserContext _context;
 		private RepositoryMock _repository;
+		private UserServiceMock _userService;
+		private PageService _pageService;
+		private PageHistoryService _historyService;
+		private SettingsService _settingsService;
+		private PluginFactoryMock _pluginFactory;
+		private SearchServiceMock _searchService;
+		private ListCache _listCache;
+		private SiteCache _siteCache;
+		private PageViewModelCache _pageViewModelCache;
+		private MemoryCache _memoryCache;
+		private MarkupConverter _markupConverter;
 
-		private UserManagerBase _userManager;
-		private PageManager _pageManager;
-		private SearchManagerMock _searchManager;
-		private HistoryManager _historyManager;
-		private SettingsManager _settingsManager;
+		private HomeController _homeController;
 
 		[SetUp]
-		public void Init()
+		public void Setup()
 		{
-			_context = new Mock<IUserContext>().Object;
-			_settings = new ApplicationSettings();
-			_settings.Installed = true;
-			_settings.AttachmentsFolder = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "attachments");
+			_container = new MocksAndStubsContainer();
 
-			// Cache
-			ListCache listCache = new ListCache(_settings);
-			PageSummaryCache pageSummaryCache = new PageSummaryCache(_settings);
+			_applicationSettings = _container.ApplicationSettings;
+			_context = _container.UserContext;
+			_repository = _container.Repository;
+			_pluginFactory = _container.PluginFactory;
+			_settingsService = _container.SettingsService;
+			_userService = _container.UserService;
+			_historyService = _container.HistoryService;
+			_pageService = _container.PageService;
+			_searchService = _container.SearchService;
+			_markupConverter = _container.MarkupConverter;
 
-			// Dependencies for PageManager
-			Mock<SearchManager> searchMock = new Mock<SearchManager>();
+			_listCache = _container.ListCache;
+			_siteCache = _container.SiteCache;
+			_pageViewModelCache = _container.PageViewModelCache;
+			_memoryCache = _container.MemoryCache;
 
-			_repository = new RepositoryMock();
-			_settingsManager = new SettingsManager(_settings, _repository);
-			_userManager = new Mock<UserManagerBase>(_settings, null).Object;
-			_searchManager = new SearchManagerMock(_settings, _repository);
-			_searchManager.PageContents = _repository.PageContents;
-			_searchManager.Pages = _repository.Pages;
-			_historyManager = new HistoryManager(_settings, _repository, _context, pageSummaryCache);
-			_pageManager = new PageManager(_settings, _repository, _searchManager, _historyManager, _context, listCache, pageSummaryCache);
+			_homeController = new HomeController(_applicationSettings, _userService, _markupConverter, _pageService, _searchService, _context, _settingsService);
+			_homeController.SetFakeControllerContext();
 		}
 
 		[Test]
 		public void Index_Should_Return_Default_Message_When_No_Homepage_Tag_Exists()
 		{
 			// Arrange
-			HomeController homeController = new HomeController(_settings, _userManager, new MarkupConverter(_settings, _repository), _pageManager, _searchManager, _context, _settingsManager);
-			homeController.SetFakeControllerContext();
 
 			// Act
-			ActionResult result = homeController.Index();
+			ActionResult result = _homeController.Index();
 
 			// Assert
 			Assert.That(result, Is.TypeOf<ViewResult>(), "ViewResult");
 
-			PageSummary summary = result.ModelFromActionResult<PageSummary>();
-			Assert.NotNull(summary, "Null model");
-			Assert.That(summary.Title, Is.EqualTo(SiteStrings.NoMainPage_Title));
-			Assert.That(summary.Content, Is.EqualTo(SiteStrings.NoMainPage_Label));
+			PageViewModel model = result.ModelFromActionResult<PageViewModel>();
+			Assert.NotNull(model, "Null model");
+			Assert.That(model.Title, Is.EqualTo(SiteStrings.NoMainPage_Title));
+			Assert.That(model.Content, Is.EqualTo(SiteStrings.NoMainPage_Label));
 		}
 
 		[Test]
 		public void Index_Should_Return_Homepage_When_Tag_Exists()
 		{
 			// Arrange
-			HomeController homeController = new HomeController(_settings, _userManager, new MarkupConverter(_settings, _repository), _pageManager, _searchManager, _context, _settingsManager);
-			homeController.SetFakeControllerContext();
 			Page page1 = new Page() 
 			{ 
 				Id = 1, 
@@ -98,23 +106,21 @@ namespace Roadkill.Tests.Unit
 			_repository.PageContents.Add(page1Content);
 
 			// Act
-			ActionResult result = homeController.Index();
+			ActionResult result = _homeController.Index();
 			
 			// Assert
 			Assert.That(result, Is.TypeOf<ViewResult>(), "ViewResult");
 
-			PageSummary summary = result.ModelFromActionResult<PageSummary>();
-			Assert.NotNull(summary, "Null model");
-			Assert.That(summary.Title, Is.EqualTo(page1.Title));
-			Assert.That(summary.Content, Is.EqualTo(page1Content.Text));
+			PageViewModel model = result.ModelFromActionResult<PageViewModel>();
+			Assert.NotNull(model, "Null model");
+			Assert.That(model.Title, Is.EqualTo(page1.Title));
+			Assert.That(model.Content, Is.EqualTo(page1Content.Text));
 		}
 
 		[Test]
 		public void Search_Should_Return_Some_Results_With_Unicode_Content()
 		{
 			// Arrange
-			HomeController homeController = new HomeController(_settings, _userManager, new MarkupConverter(_settings, _repository), _pageManager, _searchManager, _context, _settingsManager);
-			homeController.SetFakeControllerContext();
 			Page page1 = new Page()
 			{
 				Id = 1,
@@ -131,16 +137,68 @@ namespace Roadkill.Tests.Unit
 			_repository.PageContents.Add(page1Content);
 
 			// Act
-			ActionResult result = homeController.Search("ОШИБКА: неверная последовательность байт для кодировки");
+			ActionResult result = _homeController.Search("ОШИБКА: неверная последовательность байт для кодировки");
 
 			// Assert
 			Assert.That(result, Is.TypeOf<ViewResult>(), "ViewResult");
 
-			List<SearchResult> searchResults = result.ModelFromActionResult<IEnumerable<SearchResult>>().ToList();
+			List<SearchResultViewModel> searchResults = result.ModelFromActionResult<IEnumerable<SearchResultViewModel>>().ToList();
 			Assert.NotNull(searchResults, "Null model");
 			Assert.That(searchResults.Count(), Is.EqualTo(1));
 			Assert.That(searchResults[0].Title, Is.EqualTo(page1.Title));
 			Assert.That(searchResults[0].ContentSummary, Contains.Substring(page1Content.Text));
+		}
+
+		[Test]
+		public void GlobalJsVars_Should_Return_View()
+		{
+			// Arrange
+
+			// Act
+			ActionResult result = _homeController.GlobalJsVars("2.0");
+
+			// Assert
+			ViewResult viewResult = result.AssertResultIs<ViewResult>();
+			viewResult.AssertViewRendered();
+		}
+
+		[Test]
+		public void NavMenu_Should_Return_View()
+		{
+			// Arrange
+
+			// Act
+			ActionResult result = _homeController.NavMenu();
+
+			// Assert
+			ContentResult contentResult = result.AssertResultIs<ContentResult>();
+			Assert.That(contentResult.Content, Is.Not.Empty);
+		}
+
+		[Test]
+		public void BootstrapNavMenu_Should_Return_View()
+		{
+			// Arrange
+
+			// Act
+			ActionResult result = _homeController.BootstrapNavMenu();
+
+			// Assert
+			ContentResult contentResult = result.AssertResultIs<ContentResult>();
+			Assert.That(contentResult.Content, Is.Not.Empty);
+		}
+
+		[Test]
+		public void LeftMenu_Should_Return_Content()
+		{
+			// Arrange
+
+			// Act
+			ActionResult result = _homeController.LeftMenu();
+
+			// Assert
+			ContentResult contentResult = result.AssertResultIs<ContentResult>();
+			Assert.That(contentResult.Content, Is.Not.Empty);
 		}
 	}
 }
