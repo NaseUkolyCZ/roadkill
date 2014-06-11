@@ -528,7 +528,6 @@
       <SubType>Designer</SubType>
     </Content>
     <Content Include="Assets\web.config" />
-    <Content Include="connectionStrings.config" />
     <Content Include="NLog.config" />
     <None Include="packages.config" />
     <Content Include="Plugins\Web.config" />
@@ -615,6 +614,7 @@
     <Content Include="Views\Install\InstallerJsVars.cshtml" />
     <Content Include="Views\Shared\TagBlocks.cshtml" />
     <Content Include="Views\User\Recaptcha.cshtml" />
+    <None Include="Properties\PublishProfiles\wiki.sync.today - Web Deploy.pubxml" />
     <None Include="Web.Mono.config">
       <DependentUpon>Web.config</DependentUpon>
       <SubType>Designer</SubType>
