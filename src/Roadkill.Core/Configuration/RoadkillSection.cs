@@ -260,6 +260,38 @@ namespace Roadkill.Core
 			set { this["version"] = value; }
 		}
 
+        /// <summary>
+        /// The Google Analytics number
+        /// </summary>
+        /// <remarks>Added by DAP</remarks>
+        [ConfigurationProperty("gaNumber", IsRequired = false, DefaultValue = "")]
+        public string GANumber
+        {
+            get { return (string)this["gaNumber"]; }
+            set { this["gaNumber"] = value; }
+        }
+
+        /// <summary>
+        /// The Google Analytics account name
+        /// </summary>
+        /// <remarks>Added by DAP</remarks>
+        [ConfigurationProperty("gaName", IsRequired = false, DefaultValue = "")]
+        public string GAName
+        {
+            get { return (string)this["gaName"]; }
+            set { this["gaName"] = value; }
+        }
+
+        /// <summary>
+        /// Indicates if render Google Analytics script using GANumber and GAName
+        /// </summary>
+        [ConfigurationProperty("useGoogleAnalytics", IsRequired = false, DefaultValue = false)]
+        public bool UseGoogleAnalytics
+        {
+            get { return (bool)this["useGoogleAnalytics"]; }
+            set { this["useGoogleAnalytics"] = value; }
+        }
+
 		/// <summary>
 		/// Gets a value indicating whether the <see cref="T:System.Configuration.ConfigurationElement"/> object is read-only,
 		/// and can therefore be saved back to disk.

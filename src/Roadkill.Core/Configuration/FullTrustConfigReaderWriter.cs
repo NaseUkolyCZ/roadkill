@@ -168,6 +168,9 @@ namespace Roadkill.Core.Configuration
 				section.RepositoryType = dataStoreType.CustomRepositoryType;
 				section.UseWindowsAuthentication = settings.UseWindowsAuth;
 				section.Version = ApplicationSettings.FileVersion.ToString();
+                section.UseGoogleAnalytics = settings.UseGoogleAnalytics;
+                section.GAName = settings.GAName;
+                section.GANumber = settings.GANumber;
 
 				// For first time installs: these need to be explicit as the DefaultValue="" in the attribute doesn't determine the value when saving.
 				section.IsPublicSite = settings.IsPublicSite;
@@ -278,6 +281,10 @@ namespace Roadkill.Core.Configuration
 			appSettings.UserServiceType = _section.UserServiceType;
 			appSettings.UseWindowsAuthentication = _section.UseWindowsAuthentication;
 			appSettings.UpgradeRequired = UpgradeChecker.IsUpgradeRequired(_section.Version);
+
+            appSettings.UseGoogleAnalytics = _section.UseGoogleAnalytics;
+            appSettings.GAName = _section.GAName;
+            appSettings.GANumber = _section.GANumber;
 
 			return appSettings;
 		}

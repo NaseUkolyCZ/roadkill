@@ -69,6 +69,10 @@ namespace Roadkill.Core.Mvc.ViewModels
 		public bool IsPublicSite { get; set; }
 		public bool IgnoreSearchIndexErrors { get; set; }
 
+        public bool UseGoogleAnalytics { get; set; }
+        public string GANumber { get; set; }
+        public string GAName { get; set; }
+
 		/// <summary>
 		/// True when the model was updated during postback
 		/// </summary>

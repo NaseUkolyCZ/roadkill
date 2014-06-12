@@ -306,6 +306,10 @@ namespace Roadkill.Core.Configuration
 			}
 		}
 
+        public bool UseGoogleAnalytics { get; set; }
+        public string GANumber { get; set; }
+        public string GAName { get; set; }
+
 		/// <summary>
 		/// Initializes a new instance of the <see cref="ApplicationSettings"/> class.
 		/// </summary>
