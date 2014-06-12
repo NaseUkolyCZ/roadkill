@@ -157,7 +157,5 @@ $RECYCLE.BIN/
 
 *.pubxml
 Properties/PublishProfiles/
-src/Roadkill.Web/Properties/PublishProfiles/wiki.sync.today - Web Deploy.pubxml
-src/Roadkill.Web/Roadkill.config
-src/Roadkill.Web/Properties/PublishProfiles/wiki.sync.today - Web Deploy.pubxml
-src/Roadkill.Web/web.config
+Assets/Scripts/roadkill/
+
